@@ -80,11 +80,11 @@ class SelfLearner:
     
     def get_recommendation(self, symptom):
         """根据症状获取推荐修复方案"""
-        self.db.execute(
+        cur = self.db.execute(
             'SELECT recommended_action, success_rate, sample_count FROM learned_rules WHERE symptom_pattern LIKE ? ORDER BY success_rate DESC, sample_count DESC LIMIT 3',
             (f'%{symptom[:30]}%',)
         )
-        return self.db.fetchall()
+        return cur.fetchall()
     
     def get_stats(self):
         """获取学习统计"""
