@@ -22,16 +22,23 @@ SERVERS = {
     'B': {'host': '82.157.202.24', 'name': '反代服务器', 'user': 'ubuntu'},
 }
 
-def ssh_exec(host, cmd, user='ubuntu', timeout=30):
-    """SSH远程执行命令"""
-    ssh_cmd = f"ssh -o ConnectTimeout=10 -o BatchMode=yes {user}@{host} '{cmd}'"
-    try:
-        r = subprocess.run(ssh_cmd, shell=True, capture_output=True, text=True, timeout=timeout)
-        return r.stdout.strip(), r.returncode
-    except subprocess.TimeoutExpired:
-        return 'TIMEOUT', -1
-    except Exception as e:
-        return str(e), -1
+def ssh_exec(host, cmd, user='ubuntu', timeout=30, retries=3):
+    """SSH远程执行命令（带超时重连）"""
+    for attempt in range(retries):
+        ssh_cmd = f"ssh -o ConnectTimeout=10 -o ServerAliveInterval=5 -o ServerAliveCountMax=3 -o BatchMode=yes {user}@{host} '{cmd}'"
+        try:
+            r = subprocess.run(ssh_cmd, shell=True, capture_output=True, text=True, timeout=timeout)
+            if r.returncode == 0 or attempt == retries - 1:
+                return r.stdout.strip(), r.returncode
+        except subprocess.TimeoutExpired:
+            if attempt == retries - 1:
+                return 'TIMEOUT', -1
+        except Exception as e:
+            if attempt == retries - 1:
+                return str(e), -1
+        import time as _time
+        _time.sleep(2 ** attempt)  # 指数退避
+    return 'MAX_RETRIES', -1
 
 def scp_to(local_path, remote_path, host, user='ubuntu'):
     """SCP传文件到远程"""

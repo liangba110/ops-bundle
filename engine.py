@@ -42,9 +42,16 @@ def load_state(name):
     return {}
 
 def save_state(name, data):
-    """保存状态文件"""
+    """保存状态文件（带文件锁防并发）"""
+    import fcntl
     path = STATE_DIR / f'{name}.json'
-    path.write_text(json.dumps(data, ensure_ascii=False, indent=1))
+    try:
+        with open(path, 'w') as f:
+            fcntl.flock(f, fcntl.LOCK_EX)
+            f.write(json.dumps(data, ensure_ascii=False, indent=1))
+            fcntl.flock(f, fcntl.LOCK_UN)
+    except Exception:
+        path.write_text(json.dumps(data, ensure_ascii=False, indent=1))
 
 def get_counter(rule_name):
     """获取规则触发计数"""
@@ -648,6 +655,24 @@ def run_once(rule_file=None):
     summaries = sorted(LOGS_DIR.glob('summary_*.json'))
     for old in summaries[:-50]:
         old.unlink()
+    
+    # 持久化执行结果
+    history_file = BASE_DIR / 'data' / 'execution_history.jsonl'
+    try:
+        with open(history_file, 'a') as f:
+            f.write(json.dumps({
+                'timestamp': datetime.now().isoformat(),
+                'total': len(results),
+                'ok': ok_count,
+                'actioned': actioned_count,
+                'error': error_count
+            }) + '\n')
+        # 只保留最近1000条
+        lines = history_file.read_text().strip().split('\n')
+        if len(lines) > 1000:
+            history_file.write_text('\n'.join(lines[-1000:]) + '\n')
+    except Exception:
+        pass
     
     # 输出
     ts = datetime.now().strftime('%H:%M:%S')

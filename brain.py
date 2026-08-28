@@ -7,7 +7,7 @@ from pathlib import Path
 
 API_CONFIG = {
     'base_url': 'https://token-plan-cn.xiaomimimo.com/v1',
-    'api_key': 'tp-c2hcz66we5sd0xbpgeuqf0vjqvyq1ix2wsyvdpve7ktv2wj8',
+    'api_key': os.environ.get('MIMO_API_KEY', ''),
     'model': 'mimo-v2.5',
 }
 
@@ -57,9 +57,19 @@ def decide(issue):
     resp = call_llm([{'role':'user','content':prompt}])
     # 提取JSON
     try:
+        # 安全提取JSON（处理嵌套）
+        import re
+        # 找到第一个{和最后一个}
         start = resp.find('{')
-        end = resp.rfind('}') + 1
-        if start >= 0 and end > start:
+        if start >= 0:
+            depth = 0
+            end = start
+            for i in range(start, len(resp)):
+                if resp[i] == '{': depth += 1
+                elif resp[i] == '}': depth -= 1
+                if depth == 0:
+                    end = i + 1
+                    break
             return json.loads(resp[start:end])
     except: pass
     return {'raw': resp[:500], 'analysis': resp[:500]}
@@ -70,9 +80,19 @@ def analyze():
 分析是否有异常，有则输出修复方案JSON，无则输出{{"status":"ok"}}"""
     resp = call_llm([{'role':'user','content':prompt}])
     try:
+        # 安全提取JSON（处理嵌套）
+        import re
+        # 找到第一个{和最后一个}
         start = resp.find('{')
-        end = resp.rfind('}') + 1
-        if start >= 0 and end > start:
+        if start >= 0:
+            depth = 0
+            end = start
+            for i in range(start, len(resp)):
+                if resp[i] == '{': depth += 1
+                elif resp[i] == '}': depth -= 1
+                if depth == 0:
+                    end = i + 1
+                    break
             return json.loads(resp[start:end])
     except: pass
     return {'analysis': resp[:500]}
@@ -82,9 +102,19 @@ def explain(error_text):
 输出JSON：{{"explanation":"含义","fixes":[{{"cmd":"命令","reason":"原因"}}]}}"""
     resp = call_llm([{'role':'user','content':prompt}])
     try:
+        # 安全提取JSON（处理嵌套）
+        import re
+        # 找到第一个{和最后一个}
         start = resp.find('{')
-        end = resp.rfind('}') + 1
-        if start >= 0 and end > start:
+        if start >= 0:
+            depth = 0
+            end = start
+            for i in range(start, len(resp)):
+                if resp[i] == '{': depth += 1
+                elif resp[i] == '}': depth -= 1
+                if depth == 0:
+                    end = i + 1
+                    break
             return json.loads(resp[start:end])
     except: pass
     return {'explanation': resp[:500]}
