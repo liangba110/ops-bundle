@@ -1,3 +1,10 @@
+def call_llm_with_fallback(messages, max_tokens=500):
+    """LLM调用（带fallback到本地规则）"""
+    try:
+        return call_llm(messages, max_tokens)
+    except Exception as e:
+        return f'LLM调用失败({str(e)[:50]})，建议检查API连接或使用本地规则'
+
 #!/usr/bin/env python3
 """
 brain.py — LLM决策引擎（MiMo推理模型适配版）

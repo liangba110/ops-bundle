@@ -1,3 +1,4 @@
+from config import MYSQL_NM
 #!/usr/bin/env python3
 """
 智能分析层 — 自学习基线 + 异常检测 + 趋势预测 + 根因关联 + 自动调参
