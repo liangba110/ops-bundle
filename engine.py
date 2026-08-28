@@ -19,6 +19,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from event_bus import bus
 from self_learning import learner
+from predictive import predictor
 
 BASE_DIR = Path(os.environ.get('OPS_DIR', '/opt/ttdazi/ops'))
 RULES_DIR = BASE_DIR / 'rules'
@@ -620,6 +621,16 @@ def load_rules(rule_file=None):
     return rules
 
 def run_once(rule_file=None):
+    # 预测性检查（每次执行前）
+    try:
+        predictions = predictor.predict_issues()
+        if predictions:
+            auto_actions = predictor.auto_remediate(predictions)
+            if auto_actions:
+                for action in auto_actions:
+                    bus.emit('predictive_action', {'action': action, 'timestamp': datetime.now().isoformat()})
+    except Exception:
+        pass
     """执行一次所有规则"""
     rules = load_rules(rule_file)
     results = []
