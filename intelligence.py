@@ -1,3 +1,4 @@
+from event_bus import bus
 from config import MYSQL_NM
 #!/usr/bin/env python3
 """

@@ -17,6 +17,7 @@ import subprocess
 import hashlib
 from datetime import datetime, timedelta
 from pathlib import Path
+from event_bus import bus
 
 BASE_DIR = Path(os.environ.get('OPS_DIR', '/opt/ttdazi/ops'))
 RULES_DIR = BASE_DIR / 'rules'

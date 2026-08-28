@@ -1,3 +1,4 @@
+from event_bus import bus
 #!/usr/bin/env python3
 """
 alerts — 实时告警推送模块
@@ -29,6 +30,19 @@ SUPPRESS_FILE = ALERTS_DIR / 'suppress.json'  # 静默规则
 # ═══════════════════════════════════════════
 # 告警发送
 # ═══════════════════════════════════════════
+
+
+def _alert_on_event(data):
+    """事件触发时自动告警"""
+    try:
+        severity = data.get('severity', 'info')
+        if severity in ('critical', 'emergency'):
+            send_alert(data.get('message', str(data)), level=severity, source='event_bus')
+    except Exception:
+        pass
+
+bus.on('rule_error', _alert_on_event)
+bus.on('escalation', _alert_on_event)
 
 def send_alert(message, level='warn', source='ops', channel='all', suppress_key=None):
     """
