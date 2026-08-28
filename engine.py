@@ -371,9 +371,11 @@ def action_cleanup_files(cfg):
     }
 
 def action_block_ip(cfg):
-    """封禁IP"""
+    """封禁IP（带白名单保护）"""
     count = cfg.get('count', 10)
-    duration = cfg.get('duration', 3600)
+    
+    # 白名单：永不封禁的IP
+    WHITELIST = ['127.0.0.1', '::1', '42.193.113.230', '82.157.202.24', '165.154.224.225', '185.239.224.191']
     
     # 获取Top爆破IP
     cmd = f"grep 'Failed password' /var/log/auth.log 2>/dev/null | grep -oE 'from [0-9.]+' | awk '{{print $2}}' | sort | uniq -c | sort -rn | head -{count}"
@@ -385,6 +387,8 @@ def action_block_ip(cfg):
             parts = line.strip().split()
             if len(parts) == 2:
                 ip = parts[1]
+                if ip in WHITELIST:
+                    continue  # 跳过白名单IP
                 try:
                     run_cmd(f"sudo iptables -A INPUT -s {ip} -j DROP")
                     blocked += 1
@@ -737,12 +741,15 @@ def action_llm_decide(cfg, check_result, action_result):
         issue = cfg.get('message', str(check_result))
         decision = decide(issue)
         
-        # 如果LLM建议了自动修复命令，执行
+        # 安全命令白名单（只执行这些命令）
+        SAFE_COMMANDS = ['systemctl', 'mysql', 'nginx', 'df', 'free', 'top', 'ps', 'ss', 'curl']
         if decision.get('actions') and decision.get('risk') in ('low', 'medium'):
-            for action in decision['actions'][:2]:  # 最多执行前2个
+            for action in decision['actions'][:2]:
                 cmd = action.get('cmd', '')
-                if cmd and 'rm -rf' not in cmd and 'DROP' not in cmd.upper():
-                    run_cmd(cmd, timeout=30)
+                # 安全检查：只执行白名单内的命令
+                if cmd and any(cmd.startswith(s) for s in SAFE_COMMANDS):
+                    if 'rm -rf' not in cmd and 'DROP' not in cmd.upper() and 'DELETE' not in cmd.upper():
+                        run_cmd(cmd, timeout=30)
         
         return {'success': True, 'detail': f'LLM决策: {decision.get("analysis", str(decision)[:100])}'}
     except Exception as e:

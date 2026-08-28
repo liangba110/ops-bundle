@@ -84,6 +84,9 @@ def cmd_deploy(args):
 def cmd_query(args):
     if '--user' in args:
         kw = args[args.index('--user')+1] if args.index('--user')+1 < len(args) else ''
+        # SQL注入防护：只允许安全字符
+        import re
+        kw = re.sub(r"[^a-zA-Z0-9\u4e00-\u9fff_\-\s]", "", kw)
         sql = f"SELECT id, nickname, phone, balance, created_at FROM user WHERE nickname LIKE '%{kw}%' OR phone LIKE '%{kw}%' LIMIT 20"
     elif '--order' in args:
         s = {'pending':'0','paid':'1','completed':'2'}.get(args[args.index('--order')+1],'0')
@@ -99,6 +102,12 @@ def cmd_query(args):
     else:
         sql = ' '.join(args)
     if not sql: return {'status':'error','message':'用法: query <SQL> | --user/--order/--money/--tables/--users-count'}
+    # SQL注入防护：禁止危险操作
+    dangerous = ['DROP', 'DELETE', 'TRUNCATE', 'ALTER', 'UPDATE', 'INSERT', 'GRANT', 'REVOKE']
+    sql_upper = sql.upper()
+    for d in dangerous:
+        if d in sql_upper:
+            return {'status':'error','message':f'禁止执行: {d}操作'}
     o, c = run(f"{MYSQL_NM} -e \"{sql}\" 2>&1")
     return {'status':'ok' if c==0 else 'error','sql':sql[:200],'result':o[:2000]}
 

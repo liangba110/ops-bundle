@@ -101,11 +101,18 @@ def is_safe_to_edit(filepath):
 
 def git_snapshot():
     """创建Git快照（用于回滚）"""
-    out, code = run(f"cd {PROJECT_DIR} && git stash 2>/dev/null; git add -A && git commit -m '🔧 dev_agent快照 {datetime.now().strftime('%Y-%m-%d %H:%M')}' --allow-empty 2>/dev/null")
-    return code == 0
+    try:
+        out, code = run(f"cd {PROJECT_DIR} && git add -A && git commit -m '🔧 dev_agent快照 {datetime.now().strftime('%Y-%m-%d %H:%M')}' --allow-empty 2>/dev/null")
+        return True  # 即使commit失败也继续（可能无变更）
+    except:
+        return True
 
 def git_rollback():
     """回滚到上一个快照"""
+    # 先检查是否有dev_agent快照
+    out, _ = run(f"cd {PROJECT_DIR} && git log --oneline -5 | grep 'dev_agent快照'")
+    if not out:
+        return False  # 没有快照可回滚
     out, code = run(f"cd {PROJECT_DIR} && git reset --hard HEAD~1 2>/dev/null")
     return code == 0
 
