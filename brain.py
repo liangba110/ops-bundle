@@ -1,3 +1,4 @@
+from brain_v2 import call_llm_safe
 def call_llm_with_fallback(messages, max_tokens=500):
     """LLM调用（带fallback到本地规则）"""
     try:
