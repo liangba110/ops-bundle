@@ -138,7 +138,7 @@ def cmd_user_detail(args):
     if not args:
         return fail('用法: opsctl user <关键词>')
     kw = args[0]
-    MYSQL = "mysql -uroot -p'huizhiyun2026' -N huizhiyun"
+    MYSQL = f"mysql -uroot -p'{os.environ.get("MYSQL_PASSWORD", "")}' -N {os.environ.get("MYSQL_DB", "huizhiyun")}"
 
     # 基本信息
     out, _ = run(f"{MYSQL} -e \\"SELECT id, nickname, phone, balance, created_at FROM user WHERE nickname LIKE '%{kw}%' OR phone LIKE '%{kw}%' LIMIT 5;\\"")
@@ -303,7 +303,7 @@ def cmd_domain_check(args):
         'code': '''
 def cmd_db_health(args):
     """数据库深度健康报告"""
-    MYSQL = "mysql -uroot -p'huizhiyun2026' -N huizhiyun"
+    MYSQL = f"mysql -uroot -p'{os.environ.get("MYSQL_PASSWORD", "")}' -N {os.environ.get("MYSQL_DB", "huizhiyun")}"
 
     checks = {}
     for metric, sql in [
