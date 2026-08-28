@@ -1,6 +1,6 @@
 ---
 name: server-utility-scripts
-description: 轻量Python运维脚本开发模式。覆盖：日常监控/探活/日报/清理/巡检脚本编写，crontab集成，MySQL跨库查询陷阱，零依赖纯Python实现。触发：写运维脚本、cron自动化、服务器日常巡检、磁盘清理、站点探活、运营日报。
+description: 轻量Python运维脚本开发模式。覆盖：日常监控/探活/日报/清理/巡检脚本编写，crontab集成，MySQL跨库查询陷阱，零依赖纯Python实现。触发：写运维脚本、cron自动化、服务器日常巡检、磁盘清理、站点探活、运营日报。⚠️ 新项目优先用ops-automation skill（包含完整的opsctl+engine+brain+devloop体系），本skill仅用于写独立的轻量脚本或理解底层脚本模式。
 ---
 
 # 服务器轻量 Python 运维脚本开发
