@@ -241,3 +241,29 @@ if __name__ == '__main__':
         auto_ticket_from_engine()
     else:
         print('用法: ticket "描述" | status | context <id> | done <id> | auto')
+
+
+def process_ticket_with_agent(ticket_id):
+    """用dev_agent处理工单"""
+    try:
+        sys.path.insert(0, str(BASE_DIR))
+        from dev_agent import fix_issue
+        ticket = get_ticket(ticket_id)
+        if not ticket or ticket['status'] != 'open':
+            return None
+        
+        # 标记为处理中
+        ticket['status'] = 'fixing'
+        (TICKETS_DIR / f'{ticket_id}.json').write_text(json.dumps(ticket, ensure_ascii=False, indent=2))
+        
+        # 调用dev_agent修复
+        result = fix_issue(ticket['error'])
+        
+        # 更新工单
+        ticket['status'] = 'fixed' if result.get('status') == 'fixed' else 'need_review'
+        ticket['fix_result'] = result
+        (TICKETS_DIR / f'{ticket_id}.json').write_text(json.dumps(ticket, ensure_ascii=False, indent=2))
+        
+        return result
+    except Exception as e:
+        return {'error': str(e)}
