@@ -256,8 +256,25 @@ def process_ticket_with_agent(ticket_id):
         ticket['status'] = 'fixing'
         (TICKETS_DIR / f'{ticket_id}.json').write_text(json.dumps(ticket, ensure_ascii=False, indent=2))
         
-        # 调用dev_agent修复
-        result = fix_issue(ticket['error'])
+        # 优先用Codex（更强大），失败回退dev_agent
+        result = None
+        try:
+            import subprocess
+            codex_result = subprocess.run(
+                ['codex', 'exec', '-m', 'mimo-v2.5-pro', '--', 
+                 f'分析这个服务器问题并给出修复方案: {ticket["error"]}'],
+                capture_output=True, text=True, timeout=120,
+                cwd=str(BASE_DIR.parent)
+            )
+            if codex_result.returncode == 0 and codex_result.stdout.strip():
+                result = {'status': 'fixed', 'source': 'codex', 'output': codex_result.stdout.strip()[:2000]}
+        except Exception:
+            pass
+        
+        # Codex失败则用dev_agent
+        if not result:
+            from dev_agent import fix_issue
+            result = fix_issue(ticket['error'])
         
         # 更新工单
         ticket['status'] = 'fixed' if result.get('status') == 'fixed' else 'need_review'
