@@ -416,7 +416,7 @@ def action_optimize_db(cfg):
     }
 
 def action_notify(cfg, check_result, action_result):
-    """通知（写入文件供Hermes读取）"""
+    """通知 — 使用alerts模块（带去重+静默）"""
     message = cfg.get('message', 'Ops告警')
     severity = cfg.get('severity', 'warn')
     
@@ -430,18 +430,25 @@ def action_notify(cfg, check_result, action_result):
             if isinstance(v, (str, int, float)):
                 message = message.replace('{' + k + '}', str(v))
     
-    # 写入升级队列
-    escalation = load_state('escalation')
-    if 'pending' not in escalation:
-        escalation['pending'] = []
-    escalation['pending'].append({
-        'timestamp': datetime.now().isoformat(),
-        'severity': severity,
-        'message': message
-    })
-    # 只保留最近20条
-    escalation['pending'] = escalation['pending'][-20:]
-    save_state('escalation', escalation)
+    # 使用alerts模块（带静默去重）
+    try:
+        sys.path.insert(0, '/opt/ttdazi/ops')
+        from alerts import send_alert
+        # 用消息前30字作为静默key，防止重复推送
+        suppress_key = message[:30]
+        send_alert(message, level=severity, source='engine', channel='all', suppress_key=suppress_key)
+    except Exception:
+        # fallback: 直接写escalation
+        escalation = load_state('escalation')
+        if 'pending' not in escalation:
+            escalation['pending'] = []
+        escalation['pending'].append({
+            'timestamp': datetime.now().isoformat(),
+            'severity': severity,
+            'message': message
+        })
+        escalation['pending'] = escalation['pending'][-20:]
+        save_state('escalation', escalation)
     
     return {'success': True, 'detail': f'已升级: {message[:80]}'}
 
