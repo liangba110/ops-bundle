@@ -56,11 +56,11 @@ class SelfLearner:
     def _update_rule(self, symptom, action, success):
         """更新学习到的规则"""
         # 查找是否已有类似规则
-        self.db.execute(
+        cur = self.db.execute(
             'SELECT id, success_rate, sample_count FROM learned_rules WHERE symptom_pattern LIKE ?',
             (f'%{symptom[:30]}%',)
         )
-        existing = self.db.fetchone()
+        existing = cur.fetchone()
         
         if existing:
             # 更新现有规则
@@ -88,12 +88,9 @@ class SelfLearner:
     
     def get_stats(self):
         """获取学习统计"""
-        self.db.execute('SELECT COUNT(*) FROM fix_history')
-        total = self.db.fetchone()[0]
-        self.db.execute('SELECT COUNT(*) FROM fix_history WHERE success=1')
-        success = self.db.fetchone()[0]
-        self.db.execute('SELECT COUNT(*) FROM learned_rules')
-        rules = self.db.fetchone()[0]
+        total = self.db.execute('SELECT COUNT(*) FROM fix_history').fetchone()[0]
+        success = self.db.execute('SELECT COUNT(*) FROM fix_history WHERE success=1').fetchone()[0]
+        rules = self.db.execute('SELECT COUNT(*) FROM learned_rules').fetchone()[0]
         
         return {
             'total_fixes': total,
@@ -104,11 +101,11 @@ class SelfLearner:
     
     def get_recent_fixes(self, limit=20):
         """获取最近的修复记录"""
-        self.db.execute(
+        cur = self.db.execute(
             'SELECT ts, symptom, action, success, service FROM fix_history ORDER BY ts DESC LIMIT ?',
             (limit,)
         )
-        return self.db.fetchall()
+        return cur.fetchall()
 
 # 全局实例
 learner = SelfLearner()
