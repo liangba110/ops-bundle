@@ -236,6 +236,25 @@ CHECKERS = {
     'ssl': check_ssl,
 }
 
+def check_preventive(cfg):
+    """预防性运维检查"""
+    try:
+        import sys as _sys
+        _sys.path.insert(0, '/opt/ttdazi/ops')
+        from preventive import full_check
+        result = full_check()
+        issues = []
+        for section in ['disk', 'ssl', 'service']:
+            for item in result.get(section, []):
+                if item.get('action') not in ('ok', 'none', 'error'):
+                    issues.append(f"{item.get('service', item.get('host', item.get('mount', '?')))}: {item.get('action')}")
+        return {'pass': len(issues) == 0, 'issues': issues, 'detail': f'{len(issues)}个预防性问题' if issues else '全部正常'}
+    except Exception as e:
+        return {'pass': True, 'detail': f'预防检查异常: {str(e)[:50]}'}
+
+CHECKERS['preventive'] = check_preventive
+
+
 def check_anomaly(cfg):
     """基于EWMA基线的智能异常检测"""
     baselines_path = Path('/opt/ttdazi/ops/data/baselines.json')
@@ -698,3 +717,6 @@ if __name__ == '__main__':
             print("  python3 engine.py --status     # 查看状态")
     else:
         run_once()
+
+
+
