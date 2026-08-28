@@ -727,3 +727,24 @@ if __name__ == '__main__':
 
 
 
+
+def action_llm_decide(cfg, check_result, action_result):
+    """调用LLM分析复杂问题并给出决策"""
+    try:
+        import sys as _sys
+        _sys.path.insert(0, '/opt/ttdazi/ops')
+        from brain import decide
+        issue = cfg.get('message', str(check_result))
+        decision = decide(issue)
+        
+        # 如果LLM建议了自动修复命令，执行
+        if decision.get('actions') and decision.get('risk') in ('low', 'medium'):
+            for action in decision['actions'][:2]:  # 最多执行前2个
+                cmd = action.get('cmd', '')
+                if cmd and 'rm -rf' not in cmd and 'DROP' not in cmd.upper():
+                    run_cmd(cmd, timeout=30)
+        
+        return {'success': True, 'detail': f'LLM决策: {decision.get("analysis", str(decision)[:100])}'}
+    except Exception as e:
+        return {'success': False, 'detail': f'LLM调用失败: {str(e)[:80]}'}
+

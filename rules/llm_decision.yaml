@@ -1,0 +1,10 @@
+# LLM决策规则 — 当其他规则无法处理时，调用AI分析
+- name: LLM智能决策
+  check:
+    type: command
+    cmd: "echo 'check_needed'"
+    threshold: 0
+    operator: "=="
+  actions:
+    - type: log_event
+      severity: info
