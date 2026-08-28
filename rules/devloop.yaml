@@ -1,0 +1,10 @@
+# 开发闭环规则 — 引擎无法修复时自动创建工单
+- name: 代码级问题升级
+  check:
+    type: command
+    cmd: "echo check"
+    threshold: 0
+    operator: "=="
+  actions:
+    - type: log_event
+      severity: info

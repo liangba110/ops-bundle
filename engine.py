@@ -748,3 +748,17 @@ def action_llm_decide(cfg, check_result, action_result):
     except Exception as e:
         return {'success': False, 'detail': f'LLM调用失败: {str(e)[:80]}'}
 
+
+def action_create_ticket(cfg, check_result, action_result):
+    """自动创建开发工单（引擎无法修复时）"""
+    try:
+        import sys as _sys
+        _sys.path.insert(0, '/opt/ttdazi/ops')
+        from devloop import create_ticket
+        issue = cfg.get('message', str(check_result.get('detail', '')))
+        severity = cfg.get('severity', 'warn')
+        ticket = create_ticket(issue, source='engine', severity=severity)
+        return {'success': True, 'detail': f'工单已创建: {ticket["id"]}'}
+    except Exception as e:
+        return {'success': False, 'detail': f'工单创建失败: {str(e)[:80]}'}
+
