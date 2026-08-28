@@ -20,6 +20,7 @@ from pathlib import Path
 from event_bus import bus
 from self_learning import learner
 from predictive import predictor
+from multi_agent import orchestrator
 
 BASE_DIR = Path(os.environ.get('OPS_DIR', '/opt/ttdazi/ops'))
 RULES_DIR = BASE_DIR / 'rules'
@@ -621,6 +622,18 @@ def load_rules(rule_file=None):
     return rules
 
 def run_once(rule_file=None):
+    # 多Agent协作周期（每10次规则扫描执行一次）
+    try:
+        counter = load_state('agent_counter')
+        count = counter.get('count', 0) + 1
+        if count % 10 == 0:  # 每10次执行一次多Agent周期
+            result = orchestrator.run_cycle()
+            if result.get('status') == 'escalated':
+                bus.emit('escalation', {'message': f"多Agent检测到{result.get('anomalies',0)}个异常需人工介入"})
+        counter['count'] = count
+        save_state('agent_counter', counter)
+    except Exception:
+        pass
     # 预测性检查（每次执行前）
     try:
         predictions = predictor.predict_issues()
