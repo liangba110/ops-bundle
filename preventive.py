@@ -19,7 +19,7 @@ import glob
 from datetime import datetime, timedelta
 from pathlib import Path
 
-BASE_DIR = Path('/opt/ttdazi/ops')
+BASE_DIR = Path(os.environ.get('OPS_DIR', '/opt/ttdazi/ops'))
 DATA_DIR = BASE_DIR / 'data'
 sys.path.insert(0, str(BASE_DIR))
 
@@ -245,7 +245,7 @@ def check_service_preventive():
     # 检查MySQL连接数趋势
     mysql_bl = baselines.get('mysql_conn', {})
     if mysql_bl:
-        current_out, _ = run("mysql -uroot -p'huizhiyun2026' -N -e \"SHOW STATUS LIKE 'Threads_connected';\" | awk '{print $2}'")
+        current_out, _ = run("mysql -uroot -p'" + os.environ.get('MYSQL_PASSWORD', '') + "' -N -e \"SHOW STATUS LIKE 'Threads_connected';\" | awk '{print $2}'")
         try:
             current = int(current_out)
             ewma = mysql_bl.get('ewma', 0)

@@ -23,7 +23,7 @@ import re
 from datetime import datetime
 from pathlib import Path
 
-BASE_DIR = Path('/opt/ttdazi/ops')
+BASE_DIR = Path(os.environ.get('OPS_DIR', '/opt/ttdazi/ops'))
 PROJECT_DIR = Path('/opt/ttdazi')
 
 # ═══════════════════════════════════════════

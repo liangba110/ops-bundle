@@ -27,7 +27,7 @@ try:
 except ImportError:
     HAS_NUMPY = False
 
-BASE_DIR = Path('/opt/ttdazi/ops')
+BASE_DIR = Path(os.environ.get('OPS_DIR', '/opt/ttdazi/ops'))
 DATA_DIR = BASE_DIR / 'data'
 DB_PATH = DATA_DIR / 'metrics.db'
 BASELINES_PATH = DATA_DIR / 'baselines.json'
@@ -70,11 +70,11 @@ def collect_metrics():
     metrics['connections'] = int(conns) if conns.isdigit() else 0
     
     # MySQL连接数
-    mysql_conn = run_cmd("mysql -uroot -p'huizhiyun2026' -N -e \"SHOW STATUS LIKE 'Threads_connected';\" 2>/dev/null | awk '{print $2}'")
+    mysql_conn = run_cmd("mysql -uroot -p'" + os.environ.get('MYSQL_PASSWORD', '') + "' -N -e \"SHOW STATUS LIKE 'Threads_connected';\" 2>/dev/null | awk '{print $2}'")
     metrics['mysql_connections'] = int(mysql_conn) if mysql_conn.isdigit() else 0
     
     # MySQL查询数
-    queries = run_cmd("mysql -uroot -p'huizhiyun2026' -N -e \"SHOW STATUS LIKE 'Queries';\" 2>/dev/null | awk '{print $2}'")
+    queries = run_cmd("mysql -uroot -p'" + os.environ.get('MYSQL_PASSWORD', '') + "' -N -e \"SHOW STATUS LIKE 'Queries';\" 2>/dev/null | awk '{print $2}'")
     metrics['mysql_queries'] = int(queries) if queries.isdigit() else 0
     
     # 负载

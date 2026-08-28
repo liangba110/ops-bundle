@@ -21,7 +21,7 @@ import subprocess
 from datetime import datetime, timedelta
 from pathlib import Path
 
-BASE_DIR = Path('/opt/ttdazi/ops')
+BASE_DIR = Path(os.environ.get('OPS_DIR', '/opt/ttdazi/ops'))
 KNOWLEDGE_BASE = BASE_DIR / 'data' / 'knowledge_base.json'
 HISTORY_FILE = BASE_DIR / 'data' / 'alerts' / 'history.jsonl'
 
@@ -169,8 +169,8 @@ def collect_context():
     ctx['connections'] = run("ss -tn state established | wc -l")
 
     # MySQL
-    ctx['mysql_conn'] = run("mysql -uroot -p'huizhiyun2026' -N -e \"SHOW STATUS LIKE 'Threads_connected';\" | awk '{print $2}'")
-    ctx['mysql_queries'] = run("mysql -uroot -p'huizhiyun2026' -N -e \"SHOW STATUS LIKE 'Queries';\" | awk '{print $2}'")
+    ctx['mysql_conn'] = run("mysql -uroot -p'" + os.environ.get('MYSQL_PASSWORD', '') + "' -N -e \"SHOW STATUS LIKE 'Threads_connected';\" | awk '{print $2}'")
+    ctx['mysql_queries'] = run("mysql -uroot -p'" + os.environ.get('MYSQL_PASSWORD', '') + "' -N -e \"SHOW STATUS LIKE 'Queries';\" | awk '{print $2}'")
 
     # 最近错误
     recent_errors = []

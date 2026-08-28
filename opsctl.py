@@ -12,7 +12,7 @@ def run(cmd, timeout=30):
         return r.stdout.strip(), r.returncode
     except: return '', -1
 
-MYSQL_NM = "mysql -uroot -p'huizhiyun2026' -N huizhiyun"
+MYSQL_NM = "mysql -uroot -p'" + os.environ.get('MYSQL_PASSWORD', '') + "' -N huizhiyun"
 LOG_MAP = {'ttdazi': '/opt/ttdazi/backend/app/ttdazi.log', 'pay': '/var/log/ttdazi_pay.log',
            'aiweb': '/var/log/aiweb.log', 'auth': '/var/log/auth.log', 'ops': '/opt/ttdazi/ops/logs'}
 
@@ -321,7 +321,7 @@ def main():
 
     # 记录操作（供autopilot分析）
     try:
-        sys.path.insert(0, '/opt/ttdazi/ops')
+        sys.path.insert(0, os.environ.get('OPS_DIR', '/opt/ttdazi/ops'))
         from autopilot import log_operation
         log_operation(cmd, args, result.get('status', 'ok'))
     except: pass

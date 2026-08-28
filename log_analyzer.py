@@ -17,7 +17,7 @@ from datetime import datetime, timedelta
 from collections import Counter, defaultdict
 from pathlib import Path
 
-BASE_DIR = Path('/opt/ttdazi/ops')
+BASE_DIR = Path(os.environ.get('OPS_DIR', '/opt/ttdazi/ops'))
 
 LOG_FILES = {
     'auth': '/var/log/auth.log',

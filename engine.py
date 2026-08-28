@@ -18,7 +18,7 @@ import hashlib
 from datetime import datetime, timedelta
 from pathlib import Path
 
-BASE_DIR = Path('/opt/ttdazi/ops')
+BASE_DIR = Path(os.environ.get('OPS_DIR', '/opt/ttdazi/ops'))
 RULES_DIR = BASE_DIR / 'rules'
 STATE_DIR = BASE_DIR / 'state'
 LOGS_DIR = BASE_DIR / 'logs'
@@ -240,7 +240,7 @@ def check_preventive(cfg):
     """预防性运维检查"""
     try:
         import sys as _sys
-        _sys.path.insert(0, '/opt/ttdazi/ops')
+        _sys.path.insert(0, os.environ.get('OPS_DIR', '/opt/ttdazi/ops'))
         from preventive import full_check
         result = full_check()
         issues = []
@@ -275,7 +275,7 @@ def check_anomaly(cfg):
             'cpu': "top -bn1 | grep 'Cpu(s)' | awk '{print $2}' | cut -d'%' -f1",
             'mem': "free | grep Mem | awk '{printf \"%.1f\", $3/$2*100}'",
             'connections': "ss -tn state established | wc -l",
-            'mysql_conn': "mysql -uroot -p'huizhiyun2026' -N -e \"SHOW STATUS LIKE 'Threads_connected';\" 2>/dev/null | awk '{print $2}'",
+            'mysql_conn': "mysql -uroot -p'" + os.environ.get('MYSQL_PASSWORD', '') + "' -N -e \"SHOW STATUS LIKE 'Threads_connected';\" 2>/dev/null | awk '{print $2}'",
             'load': "cat /proc/loadavg | awk '{print $1}'",
         }
         
@@ -408,7 +408,7 @@ def action_optimize_db(cfg):
     
     optimized = []
     for table in tables:
-        cmd = f"mysql -uroot -p'huizhiyun2026' {database} -e 'OPTIMIZE TABLE `{table}`;' 2>/dev/null"
+        cmd = f"mysql -uroot -p'" + os.environ.get('MYSQL_PASSWORD', '') + "' {database} -e 'OPTIMIZE TABLE `{table}`;' 2>/dev/null"
         output, code = run_cmd(cmd, timeout=120)
         if code == 0:
             optimized.append(table)
@@ -436,7 +436,7 @@ def action_notify(cfg, check_result, action_result):
     
     # 使用alerts模块（带静默去重）
     try:
-        sys.path.insert(0, '/opt/ttdazi/ops')
+        sys.path.insert(0, os.environ.get('OPS_DIR', '/opt/ttdazi/ops'))
         from alerts import send_alert
         # 用消息前30字作为静默key，防止重复推送
         suppress_key = message[:30]
@@ -736,7 +736,7 @@ def action_llm_decide(cfg, check_result, action_result):
     """调用LLM分析复杂问题并给出决策"""
     try:
         import sys as _sys
-        _sys.path.insert(0, '/opt/ttdazi/ops')
+        _sys.path.insert(0, os.environ.get('OPS_DIR', '/opt/ttdazi/ops'))
         from brain import decide
         issue = cfg.get('message', str(check_result))
         decision = decide(issue)
@@ -760,7 +760,7 @@ def action_create_ticket(cfg, check_result, action_result):
     """自动创建开发工单（引擎无法修复时）"""
     try:
         import sys as _sys
-        _sys.path.insert(0, '/opt/ttdazi/ops')
+        _sys.path.insert(0, os.environ.get('OPS_DIR', '/opt/ttdazi/ops'))
         from devloop import create_ticket
         issue = cfg.get('message', str(check_result.get('detail', '')))
         severity = cfg.get('severity', 'warn')

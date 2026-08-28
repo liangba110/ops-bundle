@@ -2,7 +2,7 @@
 """每日健康报告 — 生成系统+业务综合日报"""
 import sys, json, subprocess
 from datetime import datetime
-sys.path.insert(0, '/opt/ttdazi/ops')
+sys.path.insert(0, os.environ.get('OPS_DIR', '/opt/ttdazi/ops'))
 
 def run(cmd):
     try: return subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=15).stdout.strip()

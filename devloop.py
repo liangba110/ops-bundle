@@ -16,7 +16,7 @@ import subprocess
 from datetime import datetime
 from pathlib import Path
 
-BASE_DIR = Path('/opt/ttdazi/ops')
+BASE_DIR = Path(os.environ.get('OPS_DIR', '/opt/ttdazi/ops'))
 TICKETS_DIR = BASE_DIR / 'data' / 'tickets'
 TICKETS_DIR.mkdir(parents=True, exist_ok=True)
 

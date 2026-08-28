@@ -25,7 +25,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from collections import Counter, defaultdict
 
-BASE_DIR = Path('/opt/ttdazi/ops')
+BASE_DIR = Path(os.environ.get('OPS_DIR', '/opt/ttdazi/ops'))
 LOG_DIR = BASE_DIR / 'logs'
 PATTERNS_FILE = BASE_DIR / 'data' / 'operation_patterns.json'
 TOOLS_DIR = BASE_DIR / 'auto_tools'
