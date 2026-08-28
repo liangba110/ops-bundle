@@ -22,7 +22,7 @@ class Settings:
     REDIS_DB = int(os.getenv("REDIS_DB", 0))
     REDIS_PASSWORD = os.getenv("REDIS_PASSWORD", "")
 
-    # JWT
+    # JWT（生产环境必须用随机密钥: python3 -c "import secrets; print(secrets.token_hex(32))"）
     JWT_SECRET = os.getenv("JWT_SECRET", "f3cfafcf41295f2500b39e2a0837a5e05beec3b7c4beee62a6ff6d7e20610b4f")
     JWT_ALGORITHM = "HS256"
     JWT_EXPIRE_HOURS = 24 * 7  # 7天
