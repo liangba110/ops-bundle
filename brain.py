@@ -54,7 +54,9 @@ def get_status():
     cpu = run("top -bn1 | grep 'Cpu(s)' | awk '{print $2}' | cut -d'%' -f1")
     mem = run("free | grep Mem | awk '{printf \"%.1f\", $3/$2*100}'")
     disk = run("df / | tail -1 | awk '{print $5}' | tr -d '%'")
-    mysql = run(f"mysql -uroot -p'{os.environ.get("MYSQL_PASSWORD","")}' -N -e \"SHOW STATUS LIKE 'Threads_connected';\" | awk '{print $2}'")
+    import shlex
+    mp = shlex.quote(os.environ.get('MYSQL_PASSWORD', ''))
+    mysql = run(f"mysql -uroot -p{mp} -N -e \"SHOW STATUS LIKE 'Threads_connected';\" | awk '{print $2}'")
     return f"CPU={cpu}% 内存={mem}% 磁盘={disk}% MySQL连接={mysql} 宕机服务={down or '无'}"
 
 def decide(issue):

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """每日健康报告 — 生成系统+业务综合日报"""
-import sys, json, subprocess
+import os, sys, json, subprocess
 from datetime import datetime
 sys.path.insert(0, os.environ.get('OPS_DIR', '/opt/ttdazi/ops'))
 

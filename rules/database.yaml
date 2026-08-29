@@ -2,7 +2,7 @@
 - name: MySQL连接数检查
   check:
     type: command
-    cmd: "mysql -uroot -p'huizhiyun2026' -e \"SHOW STATUS LIKE 'Threads_connected';\" 2>/dev/null | tail -1 | awk '{print $2}'"
+    cmd: "source /opt/ttdazi/ops/.env 2>/dev/null; mysql -uroot -p\"$MYSQL_PASSWORD\" -e \"SHOW STATUS LIKE 'Threads_connected';\" 2>/dev/null | tail -1 | awk '{print $2}'"
     threshold: 100
     operator: ">"
   actions:
@@ -13,7 +13,7 @@
 - name: money_log碎片整理
   check:
     type: command
-    cmd: "mysql -uroot -p'huizhiyun2026' huizhiyun -e \"SELECT ROUND(DATA_FREE/(DATA_LENGTH+1)*100,1) FROM information_schema.tables WHERE TABLE_NAME='money_log';\" 2>/dev/null | tail -1"
+    cmd: "source /opt/ttdazi/ops/.env 2>/dev/null; mysql -uroot -p\"$MYSQL_PASSWORD\" huizhiyun -e \"SELECT ROUND(DATA_FREE/(DATA_LENGTH+1)*100,1) FROM information_schema.tables WHERE TABLE_NAME='money_log';\" 2>/dev/null | tail -1"
     threshold: 50
     operator: ">"
   actions:

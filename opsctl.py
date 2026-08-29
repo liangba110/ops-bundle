@@ -12,7 +12,9 @@ def run(cmd, timeout=30):
         return r.stdout.strip(), r.returncode
     except: return '', -1
 
-MYSQL_NM = "mysql -uroot -p'" + os.environ.get('MYSQL_PASSWORD', '') + "' -N huizhiyun"
+# 安全：用 shlex.quote 防止密码特殊字符导致命令注入
+import shlex
+MYSQL_NM = "mysql -uroot -p" + shlex.quote(os.environ.get('MYSQL_PASSWORD', '')) + " -N huizhiyun"
 LOG_MAP = {'ttdazi': '/opt/ttdazi/backend/app/ttdazi.log', 'pay': '/var/log/ttdazi_pay.log',
            'aiweb': '/var/log/aiweb.log', 'auth': '/var/log/auth.log', 'ops': '/opt/ttdazi/ops/logs'}
 

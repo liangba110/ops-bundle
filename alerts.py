@@ -1,5 +1,5 @@
-from event_bus import bus
 #!/usr/bin/env python3
+from event_bus import bus
 """
 alerts — 实时告警推送模块
 支持: 文件记录 + QQ推送(通过Hermes) + 微信推送 + 控制台

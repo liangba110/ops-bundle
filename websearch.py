@@ -10,11 +10,9 @@ websearch — 通用网页搜索工具（无需web_search工具）
   python3 /opt/ttdazi/ops/websearch.py web "how to monitor mysql"
   python3 /opt/ttdazi/ops/websearch.py all "python ops automation"
 """
-import sys
-import json
-import subprocess
-import re
+import os, sys, json, subprocess, re
 from urllib.parse import quote
+GITHUB_HEADERS = '-H "Accept: application/vnd.github.v3+json"' + (f' -H "Authorization: token {os.environ.get(\'GITHUB_TOKEN\', \'\')}"' if os.environ.get('GITHUB_TOKEN') else '')
 
 def run(cmd, timeout=15):
     try:

@@ -79,3 +79,32 @@
       severity: warn
       message: "🌐 Caddy已自动重启（第{count}次）"
       when: always
+
+# HTTP状态码检查（服务运行但返回异常状态码）
+- name: 支付网关HTTP状态码
+  check:
+    type: command
+    cmd: "curl -sk -o /dev/null -w '%{http_code}' --max-time 5 http://127.0.0.1:5005/pay"
+    threshold: 400
+    operator: ">="
+  actions:
+    - type: restart_systemd
+      service: ttdazi-pay
+      cooldown: 300
+    - type: notify
+      severity: warn
+      message: "💳 支付网关HTTP异常(状态码{value})，已自动重启"
+
+- name: 后端HTTP状态码
+  check:
+    type: command
+    cmd: "curl -sk -o /dev/null -w '%{http_code}' --max-time 5 http://127.0.0.1:5002/api/health"
+    threshold: 400
+    operator: ">="
+  actions:
+    - type: restart_systemd
+      service: ttdazi
+      cooldown: 300
+    - type: notify
+      severity: warn
+      message: "🔧 后端HTTP异常(状态码{value})，已自动重启"

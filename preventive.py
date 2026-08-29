@@ -12,6 +12,7 @@ preventive — 预防性运维模块
 原理: 基于intelligence.py的预测数据，在问题发生前采取行动
 """
 import os
+import shlex
 import sys
 import json
 import subprocess
@@ -245,7 +246,7 @@ def check_service_preventive():
     # 检查MySQL连接数趋势
     mysql_bl = baselines.get('mysql_conn', {})
     if mysql_bl:
-        current_out, _ = run("mysql -uroot -p'" + os.environ.get('MYSQL_PASSWORD', '') + "' -N -e \"SHOW STATUS LIKE 'Threads_connected';\" | awk '{print $2}'")
+        current_out, _ = run("mysql -uroot -p" + shlex.quote(os.environ.get('MYSQL_PASSWORD', '')) + " -N -e \"SHOW STATUS LIKE 'Threads_connected';\" | awk '{print $2}'")
         try:
             current = int(current_out)
             ewma = mysql_bl.get('ewma', 0)
