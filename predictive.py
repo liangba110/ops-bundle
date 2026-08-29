@@ -103,7 +103,8 @@ class PredictiveOps:
     
     def _predict_mysql(self):
         """MySQL连接数预测"""
-        out = run_cmd("mysql -uroot -p'huizhiyun2026' -N -e \"SHOW STATUS LIKE 'Threads_connected';\" | awk '{print $2}'")
+        import shlex
+        out = run_cmd(f"mysql -uroot -p{shlex.quote(os.environ.get('MYSQL_PASSWORD',''))} -N -e \"SHOW STATUS LIKE 'Threads_connected';\" | awk '{{print $2}}'")
         try:
             current = int(out)
         except:

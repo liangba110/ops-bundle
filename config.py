@@ -32,4 +32,5 @@ PROJECT_DIR = Path(os.environ.get('PROJECT_DIR', '/opt/ttdazi'))
 OPS_DIR = Path(os.environ.get('OPS_DIR', '/opt/ttdazi/ops'))
 
 # MySQL命令
-MYSQL_CMD = f"mysql -h{MYSQL_HOST} -u{MYSQL_USER} -p'{MYSQL_PASSWORD}' -N {MYSQL_DB}"
+import shlex
+MYSQL_CMD = f"mysql -h{MYSQL_HOST} -u{MYSQL_USER} -p{shlex.quote(MYSQL_PASSWORD)} -N {MYSQL_DB}"

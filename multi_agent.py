@@ -4,10 +4,12 @@ multi_agent.py — 多智能体协作框架
 5个Agent协作处理事件：监控→诊断→修复→学习→报告
 """
 import os
+import sys
 import json
 import subprocess
 import time
 from pathlib import Path
+import shlex
 from datetime import datetime
 
 OPS_DIR = Path(os.environ.get('OPS_DIR', '/opt/ttdazi/ops'))
@@ -42,7 +44,7 @@ class MonitorAgent:
         metrics['disk'] = int(out) if out.isdigit() else 0
         
         # MySQL连接
-        out, _ = run_cmd("mysql -uroot -p'huizhiyun2026' -N -e \"SHOW STATUS LIKE 'Threads_connected';\" | awk '{print $2}'")
+        out, _ = run_cmd("mysql -uroot -p$(shlex.quote(os.environ.get('MYSQL_PASSWORD',''))) -N -e \"SHOW STATUS LIKE 'Threads_connected';\" | awk '{print $2}'")
         metrics['mysql_conn'] = int(out) if out.isdigit() else 0
         
         # 负载
@@ -105,7 +107,7 @@ class DiagnoseAgent:
             },
             'mysql_conn_high': {
                 'cause': 'MySQL连接数过高',
-                'check': 'mysql -uroot -p\'huizhiyun2026\' -e "SHOW PROCESSLIST;"',
+                'check': f"mysql -uroot -p{shlex.quote(os.environ.get('MYSQL_PASSWORD',''))} -e \"SHOW PROCESSLIST;\"",
                 'auto_fix_safe': False,
                 'action': 'check_mysql'
             },

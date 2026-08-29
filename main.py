@@ -28,7 +28,7 @@ async def global_exception_handler(request: Request, exc: Exception):
     logger.exception(f"未捕获异常: {request.method} {request.url.path} -> {exc}")
     return JSONResponse(
         status_code=500,
-        content={"code": 500, "msg": f"服务器内部错误: {exc}", "data": None},
+        content={"code": 500, "msg": "服务器内部错误", "data": None},
     )
 
 @app.exception_handler(ValueError)

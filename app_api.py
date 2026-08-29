@@ -317,7 +317,7 @@ async def app_recharge_list(app_id: str, token: str, db: Session = Depends(get_d
 @router.post("/recharge/callback")
 async def app_recharge_callback(request: Request, db: Session = Depends(get_db)):
     token = request.headers.get("X-Pay-Token", "")
-    if token != "huizhiyun_gateway_2026":
+    if token != os.environ.get("PAY_GATEWAY_TOKEN", ""):
         return fail(msg="签名无效")
     body = await request.json()
     order_sn = body.get("order_no", "")
