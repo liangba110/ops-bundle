@@ -465,6 +465,14 @@ def action_notify(cfg, check_result, action_result):
         escalation['pending'] = escalation['pending'][-20:]
         save_state('escalation', escalation)
     
+        # 立即触发推送（不等cron）
+    try:
+        import subprocess
+        subprocess.Popen(['python3', '/opt/ttdazi/ops/qq_push.py'], 
+                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except:
+        pass
+    
     return {'success': True, 'detail': f'已升级: {message[:80]}'}
 
 def action_log_event(cfg, check_result, rule_name):
@@ -619,6 +627,8 @@ def load_rules(rule_file=None):
             except Exception as e:
                 print(f"⚠️ 加载{f.name}失败: {e}", file=sys.stderr)
     
+    # 过滤禁用的规则
+    rules = [r for r in rules if r.get('enabled', True) != False]
     return rules
 
 def run_once(rule_file=None):
