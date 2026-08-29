@@ -5,22 +5,29 @@ description: 服务器运维自动化工具集 — opsctl CLI + Ops自治引擎 
 
 # Ops 自动化运维
 
-## 架构（完整版，12个模块）
+## 架构（完整版，30个模块）
 
 ```
 Hermes(大脑,~2500 token/天)
   ├─ opsctl(22条CLI) ──── 一条完成常用操作
-  ├─ engine(17规则YAML) ── 60秒自动检测+修复
+  ├─ engine(18规则YAML) ── 60秒自动检测+修复
   ├─ intelligence(5特性) ── EWMA基线/异常/预测/关联/调参
   ├─ brain(LLM决策) ──── MiMo API分析根因+修复方案
+  ├─ brain_v2(LLM加固) ── 缓存+重试+fallback+JSON安全
   ├─ devloop(开发闭环) ── 检测→工单→Hermes处理→修复→部署
   ├─ autopilot ──────── 扫描模式→生成新工具
   ├─ decision_engine ─── 知识库+因果链+推理诊断
-  ├─ remote_ops ──────── SSH多服务器管理(A→B)
+  ├─ remote_ops ──────── SSH多服务器管理(A→B，带重连)
   ├─ log_analyzer ────── 模式识别+错误分类+趋势
   ├─ auto_fixer ──────── 6类检测+自动修复
   ├─ alerts ──────────── 实时QQ/微信/文件告警
   ├─ preventive ──────── 磁盘预测+SSL续签+服务预检
+  ├─ event_bus ────────── SQLite事件总线(模块间通信)
+  ├─ self_learning ────── 自学习闭环(修复→学习→推荐)
+  ├─ predictive ────────── 预测性运维(磁盘/SSL/MySQL/内存)
+  ├─ multi_agent ────────── 多Agent协作(监控→诊断→修复→学习→报告)
+  ├─ security ────────── 安全执行层(白名单+拦截+审计)
+  ├─ config ────────── 统一配置(.env)
   └─ websearch ──────── GitHub/PyPI搜索(替代web_search)
 ```
 
@@ -34,35 +41,28 @@ Hermes(大脑,~2500 token/天)
 
 铁律：所有运维操作先用 opsctl，不要手写命令。
 
-# Web搜索（无需web_search工具）
+## 安全代码审查流程（铁律）
 
-## Codex CLI + MiMo（代码审查/修复）
+审查Python/FastAPI项目时，按此顺序逐项检查：
 
-```bash
-# 配置（已持久化到~/.codex/config.toml）
-export OPENAI_BASE_URL="https://token-plan-cn.xiaomimimo.com/v1"
-export OPENAI_API_KEY="tp-c2hcz66we5sd0xbpgeuqf0vjqvyq1ix2wsyvdpve7ktv2wj8"
+### 必查项（按严重度排序）
+1. **认证**: JWT密钥是否硬编码？Token是否在URL参数中？Token黑名单？
+2. **授权**: admin接口鉴权是否用Depends装饰器（非手写if）？
+3. **密码**: 最小长度8位？有字母数字要求？默认值是否为空？
+4. **注入**: SQL拼接用户输入？命令注入？
+5. **签名**: 支付回调是否验签？密钥是否可预测（md5→secrets）？
+6. **信息泄露**: 异常是否返回内部错误详情？HTTP状态码是否正确？
+7. **限流**: 登录/注册/敏感接口是否有限流？用Redis后端？
+8. **密钥管理**: 是否从.env读取？默认值是否安全？密钥分离？
+9. **分页**: 列表接口是否支持分页？
+10. **依赖**: 缺失的文件是否补全？import是否正确？
 
-# 代码审查
-codex exec -m mimo-v2.5-pro --dangerously-bypass-approvals-and-sandbox "审查backend/app/user.py"
-
-# 修复建议
-codex exec -m mimo-v2.5-pro --dangerously-bypass-approvals-and-sandbox "MySQL Too many connections怎么修"
-
-# 代码生成
-codex exec -m mimo-v2.5-pro --dangerously-bypass-approvals-and-sandbox "用Python写hello world"
-```
-
-## 铁律（永久执行）
-
-1. **遇到问题** → 查官方文档 → 查不到搜互联网 → 制定方案 → 确认 → 执行
-2. **不确定的事** → 先验证再说，不凭经验猜
-3. **API/SDK** → 先读文档+手动测试
-4. **价格** → 先查用户套餐
-5. **兼容性** → 先看官方文档+测试最小用例
-6. **配置** → 先看源码schema+示例
-7. **代码修改** → 先读完整文件+理解上下文
-8. **禁止** → 自信说"不支持/做不到"，必须验证后再说
+### 修复后必须验证
+- `curl -s -o /dev/null -w '%{http_code}' <url>` 确认200
+- `systemctl status <service>` 确认active
+- `git diff` 确认代码已提交
+- 生产环境和GitHub仓库文件数一致
+- **铁律：修了必须同时更新 源码+运行目录+GitHub，三处一致**
 
 ## Web搜索（无需web_search工具）
 
@@ -322,7 +322,19 @@ Cron已配置每周日4:00自动同步。
 
 GitHub: `https://github.com/liangba110/ops-bundle`
 
-## 跨服务器部署
+## GitHub同步防遗漏
+
+```bash
+# 自动检测生产↔仓库差异并同步
+bash /opt/ttdazi/ops/sync_repo.sh
+
+# Cron: 每小时自动运行
+0 * * * * /bin/bash /opt/ttdazi/ops/sync_repo.sh >> /var/log/repo_sync.log 2>&1
+```
+
+**铁律：修改代码后必须同时更新 源码+运行目录+GitHub，三处一致。** sync_repo.sh自动检测差异并补全。
+
+## 跨服务器部署 + OpenClaw集成
 
 ```bash
 # A→B 部署
@@ -330,6 +342,34 @@ cd /opt/ttdazi && tar czf /tmp/ops-bundle.tar.gz --exclude='__pycache__' --exclu
 scp /tmp/ops-bundle.tar.gz ubuntu@82.157.202.24:/tmp/
 ssh ubuntu@82.157.202.24 "cd /opt/ttdazi && sudo tar xzf /tmp/ops-bundle.tar.gz && bash ops/deploy.sh"
 ```
+
+### OpenClaw Skill集成
+
+B服务器OpenClaw已集成ops-automation skill：
+```bash
+# Skill位置
+~/.openclaw/workspace/skills/ops-automation/SKILL.md
+
+# OpenClaw中使用
+查看服务器状态 → python3 /opt/ttdazi/ops/opsctl.py status
+分析问题 → python3 /opt/ttdazi/ops/brain.py decide "问题描述"
+代码审查 → codex exec -m mimo-v2.5-pro "审查xxx文件"
+```
+
+### OpenClaw B服务器注意事项
+
+- **systemd服务路径**：升级后版本号可能变化（如`openclaw@2026.7.1`→`openclaw@2026.7.1-2`），需更新`/etc/systemd/system/openclaw.service`
+- **内存优化**：3.6Gi内存不够用时，清理Chrome进程+减少Agent数（26→10）+清理Swap
+- **退出码78**：OpenClaw模块路径不存在，检查pnpm全局目录版本号
+
+### Codex vs dev_agent 选择指南
+
+| 场景 | 用谁 | 原因 |
+|---|---|---|
+| 简单运维修复 | dev_agent.py | 快，无沙箱限制 |
+| 复杂代码修改 | Codex CLI | 理解更深，能执行命令 |
+| 代码审查 | Codex CLI | 逐行分析+建议 |
+| 自动化流水线 | 两个配合 | devloop优先Codex，失败回退dev_agent |
 
 GitHub仓库: `git@github.com:liangba110/ops-bundle.git`
 
@@ -454,6 +494,8 @@ def get_connection():
 
 ## Codex CLI + MiMo 配置（已验证可用 ✅）
 
+**铁律：先查后说，不确定先验证。不要凭经验猜"不支持"。**
+
 Codex CLI v0.150.1 **可以对接 MiMo Token Plan**，需要正确配置。
 
 ### 正确配置（~/.codex/config.toml）
@@ -462,7 +504,6 @@ Codex CLI v0.150.1 **可以对接 MiMo Token Plan**，需要正确配置。
 model = "mimo-v2.5-pro"
 model_provider = "mimo"
 web_search = "disabled"
-approval_policy = "never"
 
 [model_providers.mimo]
 name = "MiMo"
@@ -475,10 +516,10 @@ env_key = "OPENAI_API_KEY"
 
 ```bash
 export OPENAI_BASE_URL="https://token-plan-cn.xiaomimimo.com/v1"
-export OPENAI_API_KEY="tp-c2hcz66we5sd0xbpgeuqf0vjqvyq1ix2wsyvdpve7ktv2wj8"
+export OPENAI_API_KEY="你的MiMo Token Plan key"
 ```
 
-### 关键配置项
+### 关键配置项（缺一不可）
 
 | 字段 | 值 | 必须原因 |
 |---|---|---|
@@ -496,22 +537,21 @@ export OPENAI_API_KEY="tp-c2hcz66we5sd0xbpgeuqf0vjqvyq1ix2wsyvdpve7ktv2wj8"
 | `web_search not supported` | 没禁用web_search | 加`web_search = "disabled"` |
 | `Model metadata not found` | MiMo模型名不在Codex列表 | 正常警告，不影响使用 |
 
-### 验证
+### 使用
 
 ```bash
 codex exec -m mimo-v2.5-pro "输出hello world"
-# 输出: hello world ✅
 
-codex exec -m mimo-v2.5-pro "MySQL Too many connections怎么修"
-# 输出: 详细6步修复方案 ✅
+# 代码审查/修复（需绕过沙箱）
+codex exec -m mimo-v2.5-pro --dangerously-bypass-approvals-and-sandbox "审查xxx"
 ```
 
 ### 注意事项
 
-- Codex用sandbox模式，文件读取受限。加`approval_policy = "never"`跳过确认
 - MiMo是推理模型，`content`字段可能为空，实际在`reasoning_content`
-- Codex的`web_search`功能必须禁用，MiMo不支持该tool type
+- MiMo ¥99/月包月，API调用不额外收费
 - 配置文件路径：`~/.codex/config.toml`
+- B服务器也需配置（路径相同）
 
 ## 每日健康报告（daily_health.py）
 
@@ -537,14 +577,127 @@ export OPENAI_API_KEY="tp-c2hcz66we5sd0xbpgeuqf0vjqvyq1ix2wsyvdpve7ktv2wj8"
 codex exec -m mimo-v2.5-pro --dangerously-bypass-approvals-and-sandbox "你的问题"
 ```
 
+## 安全加固
+
+### ops系统安全（.env统一管理）
+
+- 硬编码路径→`config.py`从`.env`读取
+- MySQL密码→`.env`（权限600）
+- SQL注入→禁止DROP/DELETE/TRUNCATE
+- LLM自动执行→白名单只允许安全命令
+- block_ip→白名单保护自有服务器
+- 回滚机制→Git快照+安全回滚
+
+**白名单：** SQL=SELECT只读 | LLM=systemctl,mysql,nginx,df,free,top,ps,ss,curl | IP=127.0.0.1,自有服务器
+
+### softapi安全审计（2026-08-29 四轮修复）
+
+**审计方法：** 逐文件审查 → 分类（🔴严重/🟡中等/🟢小）→ 优先修严重 → 验证 → 同步GitHub+生产
+
+**四轮修复记录：**
+
+| 轮次 | 修复项 |
+|---|---|
+| 1 | JWT密钥→.env / 回调HMAC验签 / 订单号加随机 / HTTP状态码 / 密码校验 |
+| 2 | DEBUG环境变量 / 密码校验调用 / 回调Token→.env / .env.example |
+| 3 | Redis延迟初始化 / notify重试(指数退避) / token黑名单(Redis) / Header传参 |
+| 4 | create_token支持app_id / parse_token查黑名单 / 密钥分离(GATEWAY_TOKEN/CALLBACK_SIGN_KEY) |
+
+**教训：** 生产修了但没同步GitHub → 两边不一致。修代码后必须同时更新：源码目录 + 运行目录 + GitHub。
+
+### 安全审计清单（新项目必做）
+
+1. **密钥管理** → JWT_SECRET/密钥是否.env？有无硬编码？
+2. **认证链路** → token生成→传递→解析→鉴权，每步是否完整？
+3. **输入验证** → SQL注入/XSS/密码强度/参数校验
+4. **支付安全** → 回调验签(HMAC/RSA)？防重放？密钥分离？
+5. **权限控制** → logout是否真正失效？RBAC？白名单？
+6. **错误处理** → HTTP状态码正确？异常不泄露信息？
+7. **敏感数据** → 密码哈希？日志不记密码？.env权限600？
+8. **依赖安全** → Redis连接延迟初始化？连接池？超时？
+
+详见 `references/security-hardening.md`
+
 ## 本Session关键发现
 
-1. **Codex CLI 可以对接 MiMo** — 需要正确配置：`name`字段 + `env_key` + `web_search=disabled`。详见 `references/codex-cli-mimo-compatibility.md`
+1. **Codex CLI 可以对接 MiMo** — 需要正确配置：`name`字段 + `env_key` + `web_search=disabled`。详见Codex配置章节。
 2. **MiMo支持Responses API** — Codex用`wire_api=responses`格式可以正常通信
 3. **dev_agent.py代码审查有效** — 成功发现user.py中4个安全漏洞+3个性能问题
 4. **工单系统打通** — engine→devloop→brain→Hermes→用户确认→修复
 5. **GitHub同步铁律** — 每次session结束前sync_skills.sh
 6. **web_search禁用必须在全局** — `web_search = "disabled"`放在config顶层，不在`[model_providers]`内
+7. **softapi四轮安全修复** — 从"JWT硬编码"到"完整鉴权链路"，逐文件审查+生产同步+GitHub推送
+8. **密钥分离** — GATEWAY_TOKEN(简单Token) vs CALLBACK_SIGN_KEY(HMAC签名)，不能混用
+
+## 智能化6大方向（2026-08-29实现）
+
+| 方向 | 模块 | 功能 |
+|---|---|---|
+| 1. 统一事件总线 | event_bus.py | SQLite持久化+内存订阅+线程安全 |
+| 2. LLM调用加固 | brain_v2.py | 缓存+重试+fallback+JSON安全解析 |
+| 3. 自学习闭环 | self_learning.py | 修复记录→学习规则→推荐方案 |
+| 4. 预测性运维 | predictive.py | 磁盘/SSL/MySQL/内存预测+自动修复 |
+| 5. 多智能体协作 | multi_agent.py | 5个Agent(监控→诊断→修复→学习→报告) |
+| 6. 安全执行层 | security.py | 白名单+危险拦截+审计日志 |
+
+## 事件总线架构（2026-08-29新增）
+
+模块间通信改为事件驱动，解决文件通信的并发损坏问题：
+
+```python
+from event_bus import bus
+
+# 发布事件
+bus.emit('anomaly', {'service': 'mysql', 'value': 500})
+
+# 订阅事件
+bus.on('escalation', lambda d: send_alert(d))
+bus.on('*', lambda d: record_pattern(d))  # 通配符
+```
+
+事件类型：`rule_triggered` / `rule_error` / `escalation` / `anomaly`
+存储：SQLite持久化 + 内存订阅 + 线程安全
+
+## R12修复记录（10项）
+
+| # | 问题 | 修复 |
+|---|---|---|
+| 1 | brain.py API Key硬编码 | `os.environ.get('MIMO_API_KEY')` |
+| 2 | brain.py JSON嵌套截断 | 深度优先括号匹配 |
+| 3 | intelligence.py MySQL密码拼接 | `config.MYSQL_NM` |
+| 4 | engine.py JSON并发损坏 | `fcntl`文件锁 |
+| 5 | 全局硬编码路径 | 0处残留 |
+| 6 | decision_engine知识库静态 | `learn_from_history()`自动学习 |
+| 7 | engine执行结果无持久化 | JSONL历史记录 |
+| 8 | brain.py LLM无fallback | `call_llm_with_fallback()` |
+| 9 | 模块间无事件总线 | `event_bus.py` |
+| 10 | remote_ops SSH无重连 | 3次重试+指数退避 |
+
+## YAML规则调试陷阱
+
+### 常见问题
+1. **`enabled: false` 规则仍在执行** — 引擎需过滤：`rules = [r for r in rules if r.get('enabled', True) != False]`
+2. **`0 >= 0` 误触发** — 阈值逻辑反转：command类型检查中`pass = not triggered`（条件满足=有问题=fail）
+3. **MySQL命令`source .env`失败** — shell上下文不支持source，改用直接命令或`python3 -c "from config import ..."`
+4. **碎片率阈值** — InnoDB的DATA_FREE是预分配空间，263%是正常行为，阈值应设300%以上
+5. **禁用规则过滤** — `load_rules()`必须过滤`enabled: false`的规则，否则占位规则也被执行
+
+### 规则编写模板
+```yaml
+- name: 规则名
+  check:
+    type: command        # command/http/systemd/disk_usage/ssl/anomaly/preventive
+    cmd: "mysql -uroot -p'密码' -N -e 'SQL'"  # 直接执行，不用source .env
+    threshold: 100       # 阈值
+    operator: ">"        # > = 有条件触发（适合告警）; == = 精确匹配
+  actions:
+    - type: restart_systemd
+      service: 服务名
+      cooldown: 300      # 冷却期秒数
+    - type: notify
+      severity: warn     # info/warn/critical/emergency
+      message: "描述{value}"  # {value}自动替换
+```
 
 ## 开发陷阱
 

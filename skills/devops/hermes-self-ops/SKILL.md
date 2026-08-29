@@ -9,7 +9,7 @@ description: 管理本机 Hermes 实例自身：双轨记忆体系（Hermes 自�
 
 | 层 | 内容 | 读取方式 |
 |---|---|---|
-| Hermes 自动记忆 | `~/.hermes/memories/MEMORY.md` + `USER.md`，只存高频核心（协议/偏好/铁律/关键数字） | 每轮自动注入，容量上限 memory_char_limit 2200 / user_char_limit 1375 |
+| Hermes 自动记忆 | `~/.hermes/memories/MEMORY.md` + `USER.md`，只存高频核心（协议/偏好/铁律/关键数字） | 每轮自动注入，容量上限 memory_char_limit 4000 / user_char_limit 2000（2026-08-29 从2200/1375调大） |
 | workspace 文件（权威完整版） | `~/.hermes/workspace/`：MEMORY.md（细节）、ERRORS.md（错误教训）、SKILLS.md（流程）、CONTEXT.md（当前任务）、HISTORY.md（已完成归档） | 按需读取（任务相关才读，不全量） |
 
 - **容量规则**：Hermes 记忆 >85% 时把低频细节移入 workspace/MEMORY.md；<60% 时可把高频核心补回。检查：`memory` 工具返回 usage，或读 memories/*.md

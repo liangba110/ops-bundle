@@ -89,7 +89,60 @@ sign = md5( app_id + 排序后参数拼接(k+value) + app_key + timestamp )
 - **crud 文件覆盖**：write_file 会整文件覆盖——多个 CRUD 写进同一文件时一次写完，别分多次（会丢函数）
 - **验证签名用 Python 脚本算**：shell 拼接签名易漏参数（app_id 也在排序里），用 ./venv/bin/python3 走 urllib 完整请求
 - 收银台 HTML 里不要写 PHP/模板语法（`$(date...)` 等），是静态文件直接读
+### 安全加固（2026-08-29 R1-R12）
+
+| 轮次 | 修复项 | 状态 |
+|---|---|---|
+| R1 | JWT密钥→.env / 回调HMAC验签 / 订单号加随机 / HTTP状态码 / 密码校验 | ✅ |
+| R2 | DEBUG环境变量 / 密码校验调用 / 回调Token→.env / .env.example | ✅ |
+| R3 | Redis延迟初始化 / notify重试(指数退避) / token黑名单(Redis) / Header传参 | ✅ |
+| R4 | create_token支持app_id / parse_token查黑名单 / 密钥分离(GATEWAY_TOKEN/CALLBACK_SIGN_KEY) | ✅ |
+| R5 | admin_api /login限流 / ADMIN_SECRET环境变量 / app_id/app_key改secrets | ✅ |
+| R6 | admin_api /password改8位 / list_app_orders加分页 / register密码8位+字母数字 | ✅ |
+| R7 | main.py异常不泄露 / response.py正确状态码 / limiter加Redis后端 / 密码8位 | ✅ |
+| R8 | app_key改secrets.token_hex / require_admin改HTTPException / admin限流30/minute | ✅ |
+| R9 | 缺失文件补全(admin_api/app_crud/models) + sync_repo.sh自动同步 | ✅ |
+| R10 | admin_api冗余if not admin清理 | ✅ |
+
+### 回调验签流程（HMAC-SHA256）
+
+```
+1. 读取 X-Pay-Sign 头
+2. 构造签名字符串: order_no + amount + status + timestamp
+3. HMAC-SHA256(CALLBACK_SIGN_KEY, 签名字符串)
+4. 对比签名（恒定时间比较，防时序攻击）
+5. 检查时间戳（5分钟内有效，防重放）
+```
+
+### .env配置
+
+```env
+JWT_SECRET=<随机生成>
+CALLBACK_SIGN_KEY=<随机生成>
+GATEWAY_TOKEN=<随机生成>
+ADMIN_SECRET=<随机生成>
+DEBUG=false
+DB_PASSWORD=<密码>
+REDIS_PASSWORD=<密码>
+```
+
+生成密钥：`python3 -c "import secrets; print(secrets.token_hex(32))"`
+
+### ⚠️ 生产环境必须更换密钥
+
+### GitHub同步防遗漏
+
+```bash
+# 自动检测生产↔仓库差异
+bash /opt/ttdazi/ops/sync_repo.sh
+
+# Cron: 每小时自动运行
+0 * * * * /bin/bash /opt/ttdazi/ops/sync_repo.sh >> /var/log/repo_sync.log 2>&1
+```
+
+**铁律：修改代码后必须同时更新 源码+运行目录+GitHub，三处一致。**
 
 ## 相关
+
 - 支付回调排障、双格式兼容、Next.js 站点改码：见 `wechat-pay-callback-troubleshooting`
 - 参考：`references/softapi-api-notes.md`（详细接口字段与签名示例）
