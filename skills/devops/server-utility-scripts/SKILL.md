@@ -6,7 +6,7 @@ description: 轻量Python运维脚本开发模式。覆盖：日常监控/探活
 # 服务器轻量 Python 运维脚本开发
 
 ## 核心原则
-- **零外部依赖**：只用 pymysql + 标准库（ssl/socket/subprocess/json/os/glob）
+- **零外部依赖**：优先用 subprocess + mysql 命令行（避免 PEP 668 / venv 问题），标准库（ssl/socket/json/os/glob）。仅在确认 pymysql 已安装且可用时才用 import pymysql
 - **纯只读优先**：监控/探活/统计类脚本只读不写数据库；清理类脚本有明确的删除规则
 - **crontab 集成**：脚本通过 crontab 定时执行，输出到 `/var/log/`，异常时输出告警
 - **静默模式**：正常时输出一行确认；异常时才输出详细告警
@@ -199,3 +199,18 @@ cur.execute("INSERT INTO notifications (user_id, title, content, type) VALUES (1
 - 📖 `templates/ops-rules.yaml` — YAML规则模板示例
 - 📖 `references/intelligence-patterns.md` — EWMA/异常检测/趋势预测代码模式
 - 📖 `references/mysql-schema-pitfalls.md` — 跨库字段名陷阱
+
+## 开发陷阱
+
+1. **PEP 668 阻止 pip install** — Ubuntu 24.04+ 系统 Python 被标记 externally-managed，`pip3 install` 报错。解决方案：(a) 用 `uv pip install --system pymysql` (b) 用 subprocess+mysql 命令行代替 pymysql (c) `pip3 install --break-system-packages <包>`。推荐方案(b)，零依赖最稳。
+2. **健康检查端点路径不一致** — 不同服务的健康端点路径可能不同！ttdazi用`/api/health`，ttdazi-pay用`/health`。写统一健康检查脚本时，必须为每个服务单独配置路径，不要假设所有服务路径相同。用列表而非字典：`[('name', port, '/path'), ...]`
+3. **Cron脚本空壳文件** — 创建cron任务时如果脚本文件是0字节空文件，任务会持续报错。写完脚本后必须验证`wc -c`确认非空，再注册cron。
+4. **/data/disk 目录权限** — `/data/disk/`默认root:root 755，ubuntu用户无法写入。备份脚本写入前需`sudo chmod 777 /data/disk/`或在脚本中用sudo。
+5. **subprocess+mysql 防注入** — 用shlex.quote()包裹所有用户输入/动态值，不要直接f-string拼SQL。模板：
+   ```python
+   import subprocess, shlex
+   MYSQL = f"mysql -h{HOST} -u{USER} -p{shlex.quote(PASS)} -N {DB}"
+   def query(sql):
+       r = subprocess.run(f'{MYSQL} -e {shlex.quote(sql)}', shell=True, capture_output=True, text=True, timeout=15)
+       return r.stdout.strip() if r.returncode == 0 else ''
+   ```

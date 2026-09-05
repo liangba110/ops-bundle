@@ -45,3 +45,43 @@ description: 服务器安全加固措施集 — 密码管理/SQL注入防护/LLM
 - **app_id/app_key用secrets** → 不要用time+random，用`secrets.token_hex()`
 - **密码最低8位** → 所有注册/修改密码接口统一8位+字母数字
 - **限流** → 登录/注册/敏感接口必须有Redis后端限流
+
+## 重要数据清理安全规则（铁律）
+
+**用户明确要求：重要数据清理之前，必须先备份到数据盘，并在数据盘单独建重要文件目录。清理操作必须经过用户允许才可以执行。**
+
+### 执行流程
+1. **备份优先**：清理前先备份到 `/data/disk/important_backup/`（数据盘20G，已创建目录）
+2. **用户确认**：必须经用户明确说"执行"后才动
+3. **brain.py 等清理类操作**：AI建议的清理命令不得自动执行，必须先展示给用户确认
+
+### 自动化脚本中的实现
+```python
+# 所有涉及删除/清理的脚本，必须包含此检查
+import os, shutil
+
+BACKUP_DIR = "/data/disk/important_backup"
+
+def safe_cleanup(files_to_delete, reason):
+    """安全清理：先备份再删"""
+    # 1. 创建带时间戳的备份目录
+    import datetime
+    backup_path = os.path.join(BACKUP_DIR, datetime.datetime.now().strftime("%Y%m%d_%H%M%S"))
+    os.makedirs(backup_path, exist_ok=True)
+    
+    # 2. 备份文件
+    for f in files_to_delete:
+        if os.path.exists(f):
+            shutil.copy2(f, backup_path)
+    
+    # 3. 返回备份路径，让用户确认后才执行删除
+    return {"backup": backup_path, "files": files_to_delete, "reason": reason}
+```
+
+### 目录结构
+```
+/data/disk/important_backup/
+├── 20260830_160000/    # 按时间戳自动创建
+├── 20260831_080000/
+└── ...
+```

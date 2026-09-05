@@ -89,6 +89,7 @@ sign = md5( app_id + 排序后参数拼接(k+value) + app_key + timestamp )
 - **crud 文件覆盖**：write_file 会整文件覆盖——多个 CRUD 写进同一文件时一次写完，别分多次（会丢函数）
 - **验证签名用 Python 脚本算**：shell 拼接签名易漏参数（app_id 也在排序里），用 ./venv/bin/python3 走 urllib 完整请求
 - 收银台 HTML 里不要写 PHP/模板语法（`$(date...)` 等），是静态文件直接读
+- **systemd服务未加载.env文件**：服务配置缺少`EnvironmentFile=/opt/software_auth/.env`导致环境变量为空，数据库连接失败。症状：服务运行正常但API返回数据库错误。修复：`sudo sed -i '/\[Service\]/a EnvironmentFile=/opt/software_auth/.env' /etc/systemd/system/software_auth.service && sudo systemctl daemon-reload && sudo systemctl restart software_auth.service`。验证：`journalctl -u software_auth.service -n 20`看启动日志无数据库错误
 ### 安全加固（2026-08-29 R1-R12）
 
 | 轮次 | 修复项 | 状态 |

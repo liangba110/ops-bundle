@@ -41,6 +41,20 @@ Hermes(大脑,~2500 token/天)
 
 铁律：所有运维操作先用 opsctl，不要手写命令。
 
+## 数据清理安全铁律（2026-08-30 生效）
+
+**所有数据清理操作必须遵循以下流程，不可跳过：**
+
+1. **清理前备份**：将重要文件备份到 `/data/disk/important_backup/` 目录
+2. **用户确认**：必须经用户明确确认后才执行清理
+3. **禁止自动清理**：brain.py等模块建议的清理操作不能自动执行，必须人工确认
+
+备份目录：`/data/disk/important_backup/`（数据盘，独立于系统盘）
+
+例外（可直接清理）：
+- 临时文件 `/tmp/*`（系统重启自动清理）
+- 明确标注"可清理"的日志轮转文件
+
 ## 安全代码审查流程（铁律）
 
 审查Python/FastAPI项目时，按此顺序逐项检查：
@@ -178,6 +192,11 @@ python3 /opt/ttdazi/ops/intelligence.py --correlate
 # 采集数据（cron每5分钟自动跑）
 python3 /opt/ttdazi/ops/intelligence.py --collect
 ```
+
+## 服务器A项目清单
+
+用户经常问"服务器上都有什么项目"，完整清单见 `references/server-a-project-inventory.md`。
+包含：同途搭子(5002) / 支付网关(5005) / AI建站(5003) / 软件授权(5006) / 汇智云VPS运维(cron)。
 
 ## GitHub仓库
 
@@ -561,6 +580,50 @@ python3 /opt/ttdazi/ops/daily_health.py  # 生成系统+业务综合日报
 
 Cron: 每日8:00自动推送到QQ。内容：服务状态+资源+SSL+备份+引擎告警。
 
+### 健康检查端点路径（各服务不同！）
+
+| 服务 | 端口 | 健康检查路径 |
+|------|------|-------------|
+| ttdazi (主站) | 5002 | `/api/health` |
+| ttdazi-pay (支付) | 5005 | `/health` |
+| aiweb (AI建站) | 5003 | `/api/health` |
+
+⚠️ 统一健康检查脚本不能假设所有服务路径相同，必须为每个服务单独配置路径。
+
+## Cron 脚本清单（汇智云 VPS 15个任务）
+
+| 脚本 | 功能 | 频率 |
+|------|------|------|
+| auto_backup.sh | mysqldump全库备份 | 每天3次 |
+| daily_admin_push.py | 管理路径推送 | 每天7:00 |
+| settle_orders.py | 订单资金结算(subprocess+mysql) | 每5分钟 |
+| finance_backup.py | 财务表mysqldump+gzip | 每天3次 |
+| daily_cleanup.py | 清理过期日志(login_log/captcha等) | 每天3:00 |
+| data_disk_backup_report.py | 数据盘备份日报 | 每天8:00 |
+| daily_healthcheck.sh | 全面健康巡检(bash) | 每天8:00 |
+| daily_health.py | 系统+业务综合日报 | 每天8:00 |
+| qq_push.py | 告警队列推送 | 每10分钟 |
+| devloop.py | 开发工单处理 | 每3分钟 |
+
+### Cron脚本编写规范
+
+1. **用subprocess+mysql命令行**，不用pymysql（PEP668限制）。参考config.py读数据库配置。
+2. **脚本写完必须验证** `wc -c` 确认非空，`python3 -c "import ast; ast.parse(...)"` 确认语法。
+3. **健康检查端点各服务不同**，不能统一假设 `/api/health`。
+4. **/data/disk 目录权限** 需要 `chmod 777` 或 `sudo`，备份脚本写入前检查。
+
+### Codex 修复流程（ops-codex-fix）
+
+运维修复优先用 Codex CLI（codex-mimo），不手写：
+
+```bash
+export OPENAI_BASE_URL="https://token-plan-cn.xiaomimimo.com/v1"
+export OPENAI_API_KEY="tp-c2hcz66we5sd0xbpgeuqf0vjqvyq1ix2wsyvdpve7ktv2wj8"
+codex exec -m mimo-v2.5-pro --dangerously-bypass-approvals-and-sandbox "修复xxx"
+```
+
+流程：诊断问题 → 用Codex生成修复代码 → 验证 → 记录。详见 skill `ops-codex-fix`。
+
 ## Codex集成到工单
 
 devloop.py已集成Codex：工单处理时优先调用Codex CLI（更强大），失败回退dev_agent.py。
@@ -727,3 +790,6 @@ bus.on('*', lambda d: record_pattern(d))  # 通配符
 11. **Brain LLM JSON解析** — MiMo返回的JSON可能不完整（reasoning_content中），需要逐字符匹配括号深度而非简单find('{')。devloop.py已用深度匹配修复
 13. **MiMo Token Plan 计费** — 用户是 ¥99/月包月套餐，API调用不额外收费。不要报 ¥0.025/百万token 这个价格（那是别人的缓存价）。brain.py/dev_agent.py 每次调用成本 = ¥0
 14. **cron job deliver='origin'** — 告警推送到当前QQ对话必须用`deliver='origin'`，不能用`deliver='local'`（后者不推送）
+15. **Cron脚本空壳陷阱** — 用`write_file`创建脚本后如果内容为空（0字节），cron任务会持续报error。写完必须验证`wc -c`确认非空。本次修复了settle_orders.py/finance_backup.py/daily_healthcheck.sh三个空壳文件。
+16. **健康检查端点路径不统一** — ttdazi用`/api/health`，ttdazi-pay用`/health`。统一健康检查脚本不能假设所有服务路径相同，必须为每个服务单独配置路径。本次修复了daily_health.py中ttdazi-pay的404误报。
+17. **subprocess+mysql替代pymysql** — 服务器Python环境有PEP 668限制，pymysql可能装不上。运维脚本优先用`subprocess.run(f'mysql -e {shlex.quote(sql)}')`模式，零依赖最稳。详见server-utility-scripts skill。

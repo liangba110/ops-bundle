@@ -94,6 +94,22 @@ openclaw config set agents.defaults.model.primary deepseek/deepseek-v4-flash
 - 配置字段确认：模型条目支持 `contextTokens`/`contextWindow`（`context-_zWLdTOu.js` 的 `resolveConfiguredProviderContextTokens` 读 `models.providers.<p>.models[].contextTokens`）；`agents.defaults.compaction.*` 见 schema（mode/reserveTokens/keepRecentTokens/reserveTokensFloor/recentTurnsPreserve/qualityGuard 等）
 - 效果：会话到 ~111K（131072−20000）自动压缩历史，模型长期在舒适区
 - 注意：压缩只对**后续新对话**生效，已撑爆的旧会话仍建议 New Chat
+- **MiMo 模型同样适用**：xiaomicoding provider 的 mimo-v2.5-pro 等模型需同样声明 contextTokens=131072，否则同样会溢出
+- **已溢出会话的恢复步骤**（compaction 失败 `Already compacted recently` 时）：
+  ```bash
+  # 1. 备份并清理卡住的会话
+  SESSION_DIR=~/.openclaw/agents/main/sessions
+  ls -lt $SESSION_DIR/*.jsonl | head -1          # 找到最大的会话文件
+  mv $SESSION_DIR/<session-id>.jsonl $SESSION_DIR/<session-id>.jsonl.bak
+  mv $SESSION_DIR/<session-id>.trajectory.jsonl $SESSION_DIR/<session-id>.trajectory.jsonl.bak
+
+  # 2. 更新 compaction 配置（确保 contextTokens 已声明）
+  # 见上方 openclaw.json 配置示例
+
+  # 3. 重启 gateway
+  systemctl --user restart openclaw-gateway
+  ```
+  验证：`journalctl --user -u openclaw-gateway -n 20` 看到 `Gateway resumed` + 无 `stuck session` 即恢复
 - 验证：重启后 `journalctl --user -u openclaw-gateway | grep reload` 应见 `config change detected; evaluating reload (agents.defaults.compaction, models.providers.deepseek.models)`；再 `openclaw agent --agent main -m '回复：配置生效'` 实测
 
 ## 升级流程（含两个坑）
@@ -165,7 +181,113 @@ openclaw cron add self-improve "<执行指令>" --cron "0 4 */3 * *" --tz Asia/S
 | 重启 gateway 后立刻 `curl 127.0.0.1:port/health` 报 exit 7 | 正常：gateway 冷启动约需 10s 才绑端口，sleep 后再验（服务 active 但端口未监听 = 启动中，非故障） |
 | 记忆/技能数据在 root 家目录（迁移前） | rsync 到新用户 + chown；openclaw.json 里 auth token、DeepSeek auth profile、skills entries 全在数据目录内一起迁 |
 | 远程改 openclaw.json/exec-approvals.json：`ssh root@E 'python3 <<EOF ... EOF'` 报 `SyntaxError` / `bash: syntax error near unexpected token` | ssh 命令串里嵌 python heredoc + 中文/引号必崩（多层引号转义）。可靠路径：`scp` 拉到本地 → `patch`/`write_file` 改 → `scp` 传回 → 服务器上 `chown openclaw:openclaw` + `node --check`（root 无 node，用 `su -s /bin/bash openclaw -c "export PATH=/home/openclaw/.nvm/.../bin:\$PATH; node --check ..."`） |
-| Control UI 里 agent 只说\\\"现在执行/现在写入\\\"却不调用任何工具（无 tool_calls，纯文本回复） | 会话上下文膨胀接近上限 → 模型退化（实测 cacheRead 130K tokens 时 deepseek-v4-flash 不再发 tool_calls）。诊断：① gateway health 正常、模型请求 200 排除配置问题 ② 看 `agents/main/sessions/<id>.jsonl` 最后几条 assistant 消息——只有 text、无 toolCall ③ 看 trajectory.jsonl `model.completed.usage.cacheRead` >10 万 = 撑爆 ④ CLI 直测工具链路：`openclaw agent --agent main -m \"用工具读取 <路径>\"`（链路正常则问题在会话侧）。临时修复：Control UI **New Chat 新开会话**。根治：给自定义模型声明真实 `contextTokens` + 配 compaction 自动压缩（见下方「上下文自动压缩」章节），否则旧会话照旧退化 |
+| Control UI 里 agent 只说\\\\\\\"现在执行/现在写入\\\\\\\"却不调用任何工具（无 tool_calls，纯文本回复） | 会话上下文膨胀接近上限 → 模型退化（实测 cacheRead 130K tokens 时 deepseek-v4-flash 不再发 tool_calls）。诊断：① gateway health 正常、模型请求 200 排除配置问题 ② 看 `agents/main/sessions/<id>.jsonl` 最后几条 assistant 消息——只有 text、无 toolCall ③ 看 trajectory.jsonl `model.completed.usage.cacheRead` >10 万 = 撑爆 ④ CLI 直测工具链路：`openclaw agent --agent main -m \\\"用工具读取 <路径>\\\"`（链路正常则问题在会话侧）。临时修复：Control UI **New Chat 新开会话**。根治：给自定义模型声明真实 `contextTokens` + 配 compaction 自动压缩（见下方「上下文自动压缩」章节），否则旧会话照旧退化 |
+| 不回消息、health 正常但无响应 | **双进程冲突**：独立 gateway 进程（手动启动或 pnpm 启动）+ systemd 服务同时运行，抢同一个端口。systemd 每次启动失败（exit 78: "gateway already running"），无限重启循环（restart counter 可达几千次）。诊断：`journalctl --user -u openclaw-gateway \| grep "already running"` 或 `ss -tlnp \| grep <port>` 看到两个进程。修复：`systemctl --user stop openclaw-gateway` + `kill <独立进程pid>`，然后只保留一种启动方式。**永远不要同时用两种方式启动 gateway**。⚠️ 降权迁移后旧 root 的 systemd user 服务必须 disable + 关 root linger（防双 gateway 抢端口） |
+| 会话卡住（stuck session） | 日志出现 `stuck session recovery outcome: status=skipped`，gateway 进程正常但不处理新消息。修复：重启 gateway `systemctl --user restart openclaw-gateway`。 |
+| 会话写锁卡死 | 日志 `releasing lock held for 311913ms (max=300000ms)`。修复：stop → rm sessions/*.jsonl + *.lock → start |
+| 会话文件过大导致内存紧张 | `ls -lh ~/.openclaw/agents/*/sessions/*.trajectory.jsonl` 发现 >10MB 文件。根因：未声明 `contextTokens` 导致会话无限膨胀。修复：① 备份大会话 `mkdir backup_$(date +%Y%m%d) && mv *.jsonl backup/` ② 为模型声明 `contextTokens: 131072` + 配 compaction ③ 重启 gateway。验证：`free -h` 确认可用内存回升 |
+| 模型超时（两种） | ① first-event timeout (SSE 120s 无事件) → 增 `models.providers.<id>.timeoutSeconds`；② agent 整体超时 (300s) → 增 `agents.defaults.timeoutSeconds` + 清理会话 |
+| LLM request failed（沙箱无限循环） | Agent 读写沙箱外文件被拒后无限重试。修复：AGENTS.md 添加防卡死规则（遇 Path escapes 立即停止，最多重试1次） |
+| `maxTurns` 写入 compaction 致 gateway 启动失败 | `maxTurns` 不是有效字段。有效：`reserveTokensFloor`、`keepRecentTokens` |
+
+## 现有实例参考
+
+| 实例 | 服务器 | 运行用户 | Gateway 端口 | 数据目录 |
+|---|---|---|---|---|
+| B | 82.157.202.24（腾讯云） | ubuntu | 38598（0.0.0.0） | /home/ubuntu/.openclaw |
+| E | 185.239.224.191（东京） | openclaw（降权） | 18789（127.0.0.1） | /home/openclaw/.openclaw |
+
+B 模型：xiaomicoding/mimo-v2.5（默认）+ deepseek/deepseek-v4-flash。推荐 compaction：`timeoutSeconds: 120`、`reserveTokensFloor: 25000`、`keepRecentTokens: 30000`。
+
+### 自动清理机制
+```bash
+0 * * * * rm -f /home/ubuntu/.openclaw/agents/*/sessions/*.lock 2>/dev/null; find /home/ubuntu/.openclaw/agents/*/sessions/ -name "*.jsonl" -mmin +120 -delete 2>/dev/null
+```
+
+### AGENTS.md 防卡死规则
+Agent 尝试读写沙箱外文件被拒后无限重试 → 在 AGENTS.md 添加：遇 `Path escapes sandbox root` 立即停止不重试；每个工具调用失败最多重试1次；连续失败2次立即停止。详见 `references/`。
+
+## AGENTS.md 配置（系统提示 + 行为规则）
+
+AGENTS.md 是 openclaw 的**系统提示文件**，每次会话自动注入，优先级最高。
+
+### ⚠️ 铁律：不要在 openclaw.json 里加 systemPrompt
+
+`agents.defaults.systemPrompt` 字段**不存在/无效**，会导致 gateway 启动失败：
+```
+Gateway failed to start: Invalid config at openclaw.json:
+agents.defaults: Invalid input
+```
+**所有系统提示必须写在 AGENTS.md 里。**
+
+### 添加方式（远程服务器）
+```bash
+python3 /opt/ttdazi/ops/remote_ops.py exec 'python3 << '\''PYEOF'\''
+with open("/home/ubuntu/.openclaw/workspace/AGENTS.md") as f:
+    content = f.read()
+# 在文件开头插入（最高优先级）
+content = "你的规则内容\n\n---\n\n" + content
+with open("/home/ubuntu/.openclaw/workspace/AGENTS.md", "w") as f:
+    f.write(content)
+PYEOF' B
+```
+
+### 任务执行流程配置
+
+用户要求 openclaw 接收任务时先制定方案，确认后再执行：
+
+```markdown
+## 任务执行流程
+
+**所有任务必须先制定方案，用户确认后才可执行。**
+
+### 流程
+1. 接收任务 → 分析需求
+2. 制定方案 → 输出任务目标、执行步骤、预期结果、可能风险
+3. 等待确认 → 用户说确认/执行/同意后才动
+4. 执行任务 → 按方案逐步执行
+5. 汇报结果 → 执行完成后反馈
+
+### 例外（可直接执行）
+- 纯信息查询（天气、时间、计算）
+- 读取文件/状态检查
+- 用户明确说直接做/不用确认
+```
+
+### 强制中文输出配置
+
+MiMo 模型的内部推理是英文，会泄漏到回复中。在 AGENTS.md **文件开头**添加（最高优先级）：
+
+```markdown
+# 🚨 最高铁律（每次会话必须遵守）
+
+**你是一个中文AI助手。绝对禁止输出任何英文内容。**
+
+## 强制规则（违反=严重错误）
+
+1. **所有回复必须100%中文**
+2. **禁止显示任何英文**（包括思考过程、推理过程、内部想法）
+3. **禁止出现以下英文内容**：
+   - "The user said..." → 不要出现
+   - "Actually..." → 不要出现
+   - "Let me..." → 不要出现
+   - "OK" → 用"好的"
+   - "Yes/No" → 用"是/否"
+4. **技术术语用中文**：服务器、数据库、端口、配置
+5. **代码和命令保持原样**（不翻译代码本身）
+
+## 回复格式
+
+✅ 正确示例：
+- "好的，我来帮你检查服务器状态"
+- "数据库连接正常，端口3306监听中"
+
+❌ 错误示例（禁止出现）：
+- "OK, let me check" ❌
+- "The user said '好的'..." ❌
+```
+
+**关键点：必须放在文件开头（`#` 标题之前），否则优先级不够。**
 
 ## 参考
 
